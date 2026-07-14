@@ -20,7 +20,9 @@ import {
     eventSource,
     event_types,
     chat_metadata,
+    online_status,
 } from '../../../../script.js';
+import { waitUntilCondition } from '../../../utils.js';
 import { t } from '../../../i18n.js';
 
 const MODULE_NAME = 'third-party/ST-Connection-Rotator';
@@ -188,12 +190,27 @@ function weightedPick(entries) {
     return weighted[weighted.length - 1].id;
 }
 
+// Pre-rolled cache so the status display and the actual generation use the same pick.
+// In weighted mode, profileIdForIndex draws a fresh random number each call, so without
+// caching the display and the real selection are independent rolls and never agree.
+// rollNextProfileId() is called at the top of updateStatus(), which is the single
+// convergence point for every mutation that could change the next pick (weight edits,
+// entry add/delete, mode change, counter advance, chat change).
+let _nextProfileIdCache = null;
+
+function rollNextProfileId() {
+    _nextProfileIdCache = profileIdForIndex(getCounter());
+}
+
 /**
  * The profile ID that will be used for the *next* message.
+ * Returns the pre-rolled cached value so successive calls (display vs. actual switch)
+ * always agree. The cache is refreshed by updateStatus() after every state change.
  * @returns {string}
  */
 function nextProfileId() {
-    return profileIdForIndex(getCounter());
+    if (_nextProfileIdCache === null) rollNextProfileId();
+    return _nextProfileIdCache;
 }
 
 /**
@@ -229,6 +246,14 @@ function getCurrentProfileId() {
  * The select's change handler does an exact ID lookup, applies the profile,
  * and emits CONNECTION_PROFILE_LOADED — which we await.
  *
+ * CONNECTION_PROFILE_LOADED fires as soon as the connection-manager finishes
+ * running its slash commands, but the backend may still be reconnecting, so
+ * `online_status` can briefly be 'no_connection'. If we let generation proceed
+ * in that window, the core bails out early (script.js: `!hasBackendConnection`)
+ * and silently returns *before* clearing the prompt box — the connection rotates
+ * but the message is never sent. So we also wait for the API to come back online,
+ * mirroring what SillyTavern's own /api command does.
+ *
  * @param {string} profileId
  * @returns {Promise<boolean>} true if switched (or already active), false on failure
  */
@@ -262,6 +287,17 @@ async function switchProfile(profileId) {
     // Wait for the connection-manager to finish applying the profile.
     try {
         await loadedPromise;
+
+        // The profile is selected, but the backend may still be reconnecting.
+        // Wait until it reports online so the pending generation isn't dropped
+        // by the core's no-connection guard. Time out gracefully — a dead
+        // backend will surface via the core's own handling either way.
+        try {
+            await waitUntilCondition(() => online_status !== 'no_connection', 5_000, 100);
+        } catch {
+            console.warn('Connection Rotator: backend still offline after profile switch; proceeding anyway');
+        }
+
         return true;
     } catch (error) {
         console.error(`Connection Rotator: failed to switch to profile ID "${profileId}"`, error);
@@ -467,6 +503,7 @@ function resetCounter() {
 }
 
 function updateStatus() {
+    rollNextProfileId();
     const nextEl = document.getElementById('rotator_next_profile');
     const counterEl = document.getElementById('rotator_counter');
     if (nextEl) nextEl.textContent = profileNameById(nextProfileId()) || '—';
