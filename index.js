@@ -21,6 +21,7 @@ import {
     event_types,
     chat_metadata,
     online_status,
+    main_api,
 } from '../../../../script.js';
 import { waitUntilCondition } from '../../../utils.js';
 import { t } from '../../../i18n.js';
@@ -232,6 +233,14 @@ function getCurrentProfileId() {
     return settings?.connectionManager?.selectedProfile ?? '';
 }
 
+// Maps main_api values to their connect button IDs, matching RA_autoconnect in RossAscends-mods.js.
+const CONNECT_BUTTONS = {
+    kobold: '#api_button',
+    novel: '#api_button_novel',
+    textgenerationwebui: '#api_button_textgenerationwebui',
+    openai: '#api_button_openai',
+};
+
 // ─── Profile switching ───────────────────────────────────────────────────────
 
 /**
@@ -289,9 +298,17 @@ async function switchProfile(profileId) {
         await loadedPromise;
 
         // The profile is selected, but the backend may still be reconnecting.
-        // Wait until it reports online so the pending generation isn't dropped
-        // by the core's no-connection guard. Time out gracefully — a dead
-        // backend will surface via the core's own handling either way.
+        // For same-API rotations (most common case: two profiles sharing the same
+        // API type/source), the profile's slash commands never trigger a connect
+        // button click, so if ST wasn't connected yet (e.g. auto-connect is off),
+        // online_status stays 'no_connection' indefinitely. Actively click the
+        // button ourselves — the same thing RA_autoconnect does — so the rotator
+        // works regardless of the auto-connect setting.
+        if (online_status === 'no_connection') {
+            const btn = CONNECT_BUTTONS[main_api];
+            if (btn) $(btn).trigger('click');
+        }
+
         try {
             await waitUntilCondition(() => online_status !== 'no_connection', 5_000, 100);
         } catch {
