@@ -7,32 +7,37 @@
         <div class="inline-drawer-content">
             <div class="rotator-description">
                 Rotate between Connection profiles per message.
-                The <code>weight</code> mode uses random selection while <code>ordered</code> loops.
             </div>
 
             <div class="rotator-toolbar">
                 <div class="rotator-toggles">
-                    <label class="checkbox_label" title="Enable rotation">
+                    <label class="checkbox_label">
                         <input type="checkbox" id="rotator_enabled" />
                         <span>Enabled</span>
                     </label>
-                    <label class="checkbox_label" title="Track position per-chat instead of globally">
+                    <label class="checkbox_label">
                         <input type="checkbox" id="rotator_per_chat" />
                         <span>Per-chat counter</span>
                     </label>
-                    <label class="checkbox_label" title="When on, swipes use the rotation. When off, swipes are ignored entirely.">
+                    <label class="checkbox_label">
                         <input type="checkbox" id="rotator_include_swipes" />
                         <span>Include swipes</span>
                     </label>
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="rotator_include_quiet" />
+                        <span>Include silent generations</span>
+                        <div class="fa-solid fa-circle-info opacity50p" title="When on, background/silent generations triggered by other extensions (e.g. plugins, auto-tools) consume a rotation slot and trigger a profile switch. When off (default), they are ignored — no switch, no counter advance."></div>
+                    </label>
                 </div>
                 <div class="rotator-mode-row">
-                    <label for="rotator_mode" class="rotator-mode-label" title="Ordered: each profile runs for N consecutive messages. Weighted: each message picks a profile at random, proportional to weight.">
+                    <label for="rotator_mode" class="rotator-mode-label">
                         Mode
                     </label>
                     <select id="rotator_mode" class="text_pole">
                         <option value="ordered">Ordered</option>
                         <option value="weighted">Weighted</option>
                     </select>
+                    <div class="fa-solid fa-circle-info opacity50p" title="Ordered: each profile runs for N consecutive messages in sequence, then loops back to the first.&#13;Weighted: each message picks a profile at random, with probability proportional to its weight."></div>
                 </div>
                 <div class="rotator-actions">
                     <div class="menu_button menu_button_icon" id="rotator_add" title="Add rotation entry">

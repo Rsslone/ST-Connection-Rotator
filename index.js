@@ -44,10 +44,11 @@ const ROTATION_MODE = {
 const defaultSettings = {
     enabled: false,
     perChat: false,
-    includeSwipes: true,  // whether swipes advance the rotation counter
+    includeSwipes: true,   // whether swipes trigger a profile switch
+    includeQuiet: false,   // whether quiet/silent (plugin) generations trigger a switch
     mode: ROTATION_MODE.ORDERED,
-    entries: [],          // { id, profileId, profileName, weight }
-    globalCounter: 0,     // used when perChat === false
+    entries: [],           // { id, profileId, profileName, weight }
+    globalCounter: 0,      // used when perChat === false
 };
 
 /** @type {Record<string, any>} */
@@ -69,7 +70,7 @@ function saveSettings() {
     saveSettingsDebounced();
 }
 
-/** @returns {{enabled:boolean, perChat:boolean, includeSwipes:boolean, mode:string, entries:Array, globalCounter:number}} */
+/** @returns {{enabled:boolean, perChat:boolean, includeSwipes:boolean, includeQuiet:boolean, mode:string, entries:Array, globalCounter:number}} */
 function cfg() {
     return settings[SETTINGS_KEY];
 }
@@ -344,6 +345,10 @@ async function onGenerationStarted(type, details, dryRun) {
     // When includeSwipes is off, ignore them entirely — no switch, no advance.
     if (type === 'swipe' && !cfg().includeSwipes) return;
 
+    // Quiet generations are background/plugin calls (e.g. from other extensions).
+    // When includeQuiet is off, skip them entirely — no switch, no advance.
+    if (type === 'quiet' && !cfg().includeQuiet) return;
+
     const target = nextProfileId();
     if (!target) return;
 
@@ -531,10 +536,12 @@ function syncControls() {
     const enabled = /** @type {HTMLInputElement|null} */ (document.getElementById('rotator_enabled'));
     const perChat = /** @type {HTMLInputElement|null} */ (document.getElementById('rotator_per_chat'));
     const includeSwipes = /** @type {HTMLInputElement|null} */ (document.getElementById('rotator_include_swipes'));
+    const includeQuiet = /** @type {HTMLInputElement|null} */ (document.getElementById('rotator_include_quiet'));
     const mode = /** @type {HTMLSelectElement|null} */ (document.getElementById('rotator_mode'));
     if (enabled) enabled.checked = !!cfg().enabled;
     if (perChat) perChat.checked = !!cfg().perChat;
     if (includeSwipes) includeSwipes.checked = !!cfg().includeSwipes;
+    if (includeQuiet) includeQuiet.checked = !!cfg().includeQuiet;
     if (mode) mode.value = cfg().mode || ROTATION_MODE.ORDERED;
 }
 
@@ -558,6 +565,11 @@ function setupListeners() {
 
     $('#rotator_include_swipes').off('change').on('change', (e) => {
         cfg().includeSwipes = /** @type {HTMLInputElement} */ (e.target).checked;
+        saveSettings();
+    });
+
+    $('#rotator_include_quiet').off('change').on('change', (e) => {
+        cfg().includeQuiet = /** @type {HTMLInputElement} */ (e.target).checked;
         saveSettings();
     });
 
